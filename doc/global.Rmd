@@ -1,0 +1,137 @@
+---
+title: "Prediciton on Online News Popularity"
+author:
+- Nanjun Wang 
+- nw2359
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  pdf_document:
+    toc: yes
+  html_notebook:
+    theme: journal
+    toc: yes
+---
+##Load libraries 
+```{r,warning=FALSE, message=FALSE}
+library(e1071)
+library(mlbench)
+library(caret)
+library(ggplot2)
+library(knitr)
+```
+
+##Remove redundant varibales
+```{r}
+load("/Users/ouminamikun/Documents/Temporary/ADA/ADA_Project/data/modifieddata.RData")
+Y <- as.numeric(newsdata$log_shares)
+X <- newsdata[,-c(1,49,50,51)]
+categorical_var <- grep("is", names(X))
+for(i in 1:length(categorical_var)){
+  indicator <- categorical_var[i]
+  X[,indicator] <- as.factor(X[,indicator])
+}
+#X <- scale(X[,-nearZeroVar(X)])
+#X <- X[, -findCorrelation(cor(X), .8)]
+#X <- as.data.frame(X)
+#system.time(svmProfile <- rfe(X, Y,
+#                  sizes = 10,
+#                  rfeControl = rfeControl(functions = caretFuncs, number = 2),
+#                  method = "svmLinear"))
+
+
+correlationMatrix <- cor(X[,-categorical_var])
+# find attributes that are highly corrected (ideally >0.75)
+highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.5)
+# print indexes of highly correlated attributes
+names(X[,highlyCorrelated])
+X_cor_rm <- as.data.frame(X[,-highlyCorrelated])
+```
+
+##Rank features by importance
+```{r}
+#control <- trainControl(method="repeatedcv", number=5, repeats=2)
+# train the model
+#system.time( model <- train(x= X, y= Y,  method="lm", preProcess="scale", trControl=control, importance = TRUE))
+# estimate variable importance
+#importance <- varImp(model, scale=FALSE)
+# plot (importance)
+
+
+categorical_ind <- grep("is", names(X_cor_rm))
+ncols <- ncol(X_cor_rm)
+col_ind <- 1:ncols
+continuous_ind <- col_ind[-categorical_ind]
+pearson <- NA
+for(i in 1:length(continuous_ind)){
+  indicator <- continuous_ind[i]
+  pearson[i] <- abs( cor.test(X_cor_rm[,indicator], Y, method = "pearson")$estimate)
+}
+#pearson_rank <- order(pearson_scores<-unlist(pearson), decreasing = TRUE)
+#pearson_sorted <- sort(pearson_scores,decreasing = TRUE)
+pearson_df <- data.frame(variables = names(X_cor_rm[,continuous_ind]),
+                         scores = pearson)
+
+
+png("/Users/ouminamikun/Documents/Temporary/ADA/ADA_Project/output/varImp.png")
+ggplot(data=pearson_df, aes(x=reorder(variables, scores), y=scores)) +
+  geom_bar(stat = "identity" ,width = 0.5, color = "steelblue", fill = "steelblue")+coord_flip()
+dev.off()
+```
+##Split Dataset
+```{r}
+continuous_order <- order( pearson_df$scores, decreasing = TRUE)
+continuous_16 <- pearson_df$variables[continuous_order[1:16]]
+var_selected <- c(as.character( continuous_16), colnames(X_cor_rm [,categorical_ind]))
+X_20 <- X_cor_rm[,var_selected]
+mydata <- cbind(X_20, Y)
+#smp_size <- floor(0.75*nrow(mydata))
+#set.seed(123)
+#train_ind <- sample(seq_len(nrow(mydata)), size = smp_size)
+#train <- mydata[train_ind, ]
+#test <- mydata[-train_ind, ]
+#write.csv(test, "/Users/ouminamikun/Documents/Temporary/ADA/ADA_Project/data/test.csv")
+#write.csv(train, "/Users/ouminamikun/Documents/Temporary/ADA/ADA_Project/data/train.csv")
+train <- read.csv("/Users/ouminamikun/Documents/Temporary/ADA/ADA_Project/data/train.csv")
+test <- read.csv("/Users/ouminamikun/Documents/Temporary/ADA/ADA_Project/data/test.csv")
+```
+
+##Tunning Support Vector Regression Model
+```{r}
+system.time(tuneResult <- tune(svm, Y~. , data = train[1:3000,],
+              ranges = list(epsilon = seq(0.1,0.3,0.05), cost = 2^(2:4))
+))
+print(tuneResult)
+
+png("/Users/ouminamikun/Documents/Temporary/ADA/ADA_Project/output/cv_svm.png")
+plot(tuneResult)
+dev.off()
+```
+
+##Making Prediciton
+```{r}
+cate_ind <- grep("is", colnames(train))
+for(i in 1:length(cate_ind)){
+  indicator <- cate_ind[i]
+  train[,indicator] <- as.numeric(train[,indicator])
+}
+system.time( model_linear <- svm(x= train[,-21], y = train[,21], kernel = "linear"))
+system.time( model_RBF <- svm(x= train[,-21], y = train[,21], kernel = "radial"))
+
+
+#tunedModel <- tuneResult$best.model
+
+cat_ind <- grep("is", colnames(test))
+for(i in 1:length(cat_ind)){
+  indicator <- cat_ind[i]
+  test[,indicator] <- as.numeric(test[,indicator])
+}
+pred_linear <- predict(model_linear, test[,-21])
+pred_RBF <- predict(model_RBF, test[,-21])
+RSS_linear <- sum(test$Y - pred_linear)^2
+RSS_RBF <- sum(test$Y - pred_RBF)^2
+RSS_df <- data.frame(Algorithms = c("SVM Linear", "SVM RBF"),
+                     RSS = c(RSS_linear,RSS_RBF),
+                     Training_Time = c(557.894,255.026))
+
+kable(RSS_df)
+```
