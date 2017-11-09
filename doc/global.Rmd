@@ -43,7 +43,9 @@ correlationMatrix <- cor(X[,-categorical_var])
 # find attributes that are highly corrected (ideally >0.75)
 highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.5)
 # print indexes of highly correlated attributes
+sink("/Users/ouminamikun/Documents/Temporary/ADA/ADA_Project/output/var_remove.txt")
 names(X[,highlyCorrelated])
+sink()
 X_cor_rm <- as.data.frame(X[,-highlyCorrelated])
 ```
 
@@ -127,8 +129,8 @@ for(i in 1:length(cat_ind)){
 }
 pred_linear <- predict(model_linear, test[,-21])
 pred_RBF <- predict(model_RBF, test[,-21])
-RSS_linear <- sum(test$Y - pred_linear)^2
-RSS_RBF <- sum(test$Y - pred_RBF)^2
+RSS_linear <- sum((test$Y - pred_linear)^2)
+RSS_RBF <- sum((test$Y - pred_RBF)^2)
 RSS_df <- data.frame(Algorithms = c("SVM Linear", "SVM RBF"),
                      RSS = c(RSS_linear,RSS_RBF),
                      Training_Time = c(557.894,255.026))

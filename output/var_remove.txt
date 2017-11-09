@@ -1,5 +1,0 @@
- [1] "n_unique_tokens"            "log_n_tokens_content"       "n_non_stop_words"          
- [4] "data_channel_is_tech"       "is_weekend"                 "global_sentiment_polarity" 
- [7] "log_LDA_02"                 "log_LDA_03"                 "global_rate_negative_words"
-[10] "sqrt_num_imgs"              "global_rate_positive_words" "sqrt_kw_min_max"           
-[13] "max_positive_polarity"      "data_channel_is_world"     
